@@ -5,7 +5,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::json;
-use std::{fmt, marker::PhantomData};
+use std::{fmt, marker::PhantomData, time::Duration};
 
 pub struct TelegramResponse<T>(pub Result<T, Error>);
 
@@ -247,35 +247,36 @@ impl TelegramClient {
         method: &str,
         mut form_builder: impl FnMut() -> Form,
     ) -> Result<serde_json::Value, Error> {
-        // let res = loop {
-        //     let res: TelegramResponse<serde_json::Value> = self
-        //         .req_client
-        //         .post(format!(
-        //             "https://api.telegram.org/bot{}/{}",
-        //             self.token, method
-        //         ))
-        //         .multipart(form.clone())
-        //         .send()
-        //         .await?
-        //         .json()
-        //         .await?;
-        //     if let Err(err) = res.0 && let Error::TelegramError(429, retry_after_description) {
+        let res = loop {
+            let res: TelegramResponse<serde_json::Value> = self
+                .req_client
+                .post(format!(
+                    "https://api.telegram.org/bot{}/{}",
+                    self.token, method
+                ))
+                .multipart(form_builder())
+                .send()
+                .await?
+                .json()
+                .await?;
+            if let Err(err) = res.0.as_ref()
+                && let Error::TelegramError {
+                    error_code: 429,
+                    description,
+                } = err
+                && let Some(secs) = description
+                    .split_whitespace()
+                    .last()
+                    .map(|secs| secs.parse().ok())
+                    .flatten()
+            {
+                println!("Sleeping for {secs} secs");
+                tokio::time::sleep(Duration::from_secs(secs)).await;
+            } else {
+                break res;
+            }
+        };
 
-        //     } else {
-        //         break res;
-        //     }
-        // };
-        let res: TelegramResponse<serde_json::Value> = self
-            .req_client
-            .post(format!(
-                "https://api.telegram.org/bot{}/{}",
-                self.token, method
-            ))
-            .multipart(form_builder())
-            .send()
-            .await?
-            .json()
-            .await?;
         res.into()
     }
 
