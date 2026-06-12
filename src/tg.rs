@@ -5,7 +5,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::json;
-use std::{borrow::Cow, fmt, marker::PhantomData};
+use std::{fmt, marker::PhantomData};
 
 pub struct TelegramResponse<T>(pub Result<T, Error>);
 
@@ -74,7 +74,7 @@ pub struct TelegramClient {
     token: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TelegramMedia {
     URL(String),
     Bytes(Vec<u8>, String),
@@ -242,7 +242,11 @@ impl TelegramClient {
         }
     }
 
-    async fn make_request(&self, method: &str, form: Form) -> Result<serde_json::Value, Error> {
+    async fn make_request(
+        &self,
+        method: &str,
+        mut form_builder: impl FnMut() -> Form,
+    ) -> Result<serde_json::Value, Error> {
         // let res = loop {
         //     let res: TelegramResponse<serde_json::Value> = self
         //         .req_client
@@ -267,7 +271,7 @@ impl TelegramClient {
                 "https://api.telegram.org/bot{}/{}",
                 self.token, method
             ))
-            .multipart(form)
+            .multipart(form_builder())
             .send()
             .await?
             .json()
@@ -277,59 +281,56 @@ impl TelegramClient {
 
     pub async fn send_message(
         &self,
-        chat_id: impl Into<Cow<'static, str>>,
+        chat_id: String,
         message: String,
     ) -> Result<serde_json::Value, Error> {
-        self.make_request(
-            "sendMessage",
+        self.make_request("sendMessage", || {
             Form::new()
-                .text("chat_id", chat_id)
-                .text("text", message)
+                .text("chat_id", chat_id.clone())
+                .text("text", message.clone())
                 .text("parse_mode", "HTML")
-                .text("link_preview_options", r#"{"is_disabled": true}"#),
-        )
+                .text("link_preview_options", r#"{"is_disabled": true}"#)
+        })
         .await
     }
 
     pub async fn send_rich_message(
         &self,
-        chat_id: impl Into<Cow<'static, str>>,
+        chat_id: String,
         message: String,
     ) -> Result<serde_json::Value, Error> {
-        self.make_request(
-            "sendRichMessage",
+        self.make_request("sendRichMessage", || {
             Form::new()
-                .text("chat_id", chat_id)
+                .text("chat_id", chat_id.clone())
                 .text("rich_message", json!({"html": message}).to_string())
                 .text("parse_mode", "HTML")
-                .text("link_preview_options", r#"{"is_disabled": true}"#),
-        )
+                .text("link_preview_options", r#"{"is_disabled": true}"#)
+        })
         .await
     }
 
     pub async fn send_photo(
         &self,
-        chat_id: impl Into<Cow<'static, str>>,
+        chat_id: String,
         photo: TelegramMedia,
         caption: String,
         spoiler: bool,
     ) -> Result<serde_json::Value, Error> {
-        self.make_request(
-            "sendPhoto",
+        self.make_request("sendPhoto", || {
             Form::new()
-                .text("chat_id", chat_id)
-                .text("caption", caption)
+                .text("chat_id", chat_id.clone())
+                .text("caption", caption.clone())
                 .text("show_caption_above_media", "true")
                 .text("has_spoiler", spoiler.to_string())
                 .text("parse_mode", "HTML")
-                .part("photo", photo.into()),
-        )
+                .part("photo", photo.clone().into())
+        })
         .await
     }
 
     pub async fn send_animation(
         &self,
-        chat_id: impl Into<Cow<'static, str>>,
+        chat_id: String,
         animation: TelegramMedia,
         caption: String,
         spoiler: bool,
@@ -337,28 +338,31 @@ impl TelegramClient {
         height: Option<usize>,
         thumbnail: Option<TelegramMedia>,
     ) -> Result<serde_json::Value, Error> {
-        let mut form = Form::new()
-            .text("chat_id", chat_id)
-            .text("caption", caption)
-            .text("show_caption_above_media", "true")
-            .text("has_spoiler", spoiler.to_string())
-            .text("parse_mode", "HTML")
-            .part("animation", animation.into());
-        if let Some(thumbnail) = thumbnail {
-            form = form.part("thumbnail", thumbnail.into());
-        }
-        if let Some(width) = width {
-            form = form.text("width", width.to_string());
-        }
-        if let Some(height) = height {
-            form = form.text("height", height.to_string());
-        }
-        self.make_request("sendAnimation", form).await
+        let form_builder = || {
+            let mut form = Form::new()
+                .text("chat_id", chat_id.clone())
+                .text("caption", caption.clone())
+                .text("show_caption_above_media", "true")
+                .text("has_spoiler", spoiler.to_string())
+                .text("parse_mode", "HTML")
+                .part("animation", animation.clone().into());
+            if let Some(thumbnail) = thumbnail.as_ref() {
+                form = form.part("thumbnail", thumbnail.clone().into());
+            }
+            if let Some(width) = width {
+                form = form.text("width", width.to_string());
+            }
+            if let Some(height) = height {
+                form = form.text("height", height.to_string());
+            }
+            form
+        };
+        self.make_request("sendAnimation", form_builder).await
     }
 
     pub async fn send_video(
         &self,
-        chat_id: impl Into<Cow<'static, str>>,
+        chat_id: String,
         video: TelegramMedia,
         caption: String,
         spoiler: bool,
@@ -367,43 +371,45 @@ impl TelegramClient {
         height: usize,
         thumbnail: Option<TelegramMedia>,
     ) -> Result<serde_json::Value, Error> {
-        let mut form = Form::new()
-            .text("chat_id", chat_id)
-            .text("caption", caption)
-            .text("show_caption_above_media", "true")
-            .text("has_spoiler", spoiler.to_string())
-            .text("parse_mode", "HTML")
-            .text("supports_streaming", "true")
-            .text("duration", duration.to_string())
-            .text("width", width.to_string())
-            .text("height", height.to_string())
-            .part("video", video.into());
-        if let Some(thumbnail) = thumbnail {
-            form = form.part("thumbnail", thumbnail.into());
-        }
-        self.make_request("sendVideo", form).await
+        let form_builder = || {
+            let mut form = Form::new()
+                .text("chat_id", chat_id.clone())
+                .text("caption", caption.clone())
+                .text("show_caption_above_media", "true")
+                .text("has_spoiler", spoiler.to_string())
+                .text("parse_mode", "HTML")
+                .text("supports_streaming", "true")
+                .text("duration", duration.to_string())
+                .text("width", width.to_string())
+                .text("height", height.to_string())
+                .part("video", video.clone().into());
+            if let Some(thumbnail) = thumbnail.as_ref() {
+                form = form.part("thumbnail", thumbnail.clone().into());
+            }
+            form
+        };
+        self.make_request("sendVideo", form_builder).await
     }
 
     pub async fn send_media_group(
         &self,
-        chat_id: impl Into<Cow<'static, str>>,
+        chat_id: String,
         media_group: &mut [InputMedia],
     ) -> Result<serde_json::Value, Error> {
-        let mut form = Form::new().text("chat_id", chat_id);
-        for media in media_group.iter_mut() {
-            match media {
-                InputMedia::Photo { media, id, .. } => {
-                    form = form.part(id.clone(), media.take().unwrap().into())
-                }
-                InputMedia::Video { media, id, .. } => {
-                    form = form.part(id.clone(), media.take().unwrap().into())
+        let form_builder = || {
+            let mut form = Form::new().text("chat_id", chat_id.clone());
+            for media in media_group.iter_mut() {
+                match media {
+                    InputMedia::Photo { media, id, .. } => {
+                        form = form.part(id.clone(), media.clone().unwrap().into())
+                    }
+                    InputMedia::Video { media, id, .. } => {
+                        form = form.part(id.clone(), media.clone().unwrap().into())
+                    }
                 }
             }
-        }
-        self.make_request(
-            "sendMediaGroup",
-            form.text("media", serde_json::to_string(media_group).unwrap()),
-        )
-        .await
+            form.text("media", serde_json::to_string(media_group).unwrap())
+        };
+        self.make_request("sendMediaGroup", form_builder).await
     }
 }

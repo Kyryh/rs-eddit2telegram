@@ -143,7 +143,7 @@ async fn send_selftext_gallery_post(
     let text_messages = textwrap(&text, 4096);
 
     for text in text_messages {
-        tg_client.send_message("266949564", text).await?;
+        tg_client.send_message("266949564".to_owned(), text).await?;
     }
 
     let spoiler = submission.should_hide();
@@ -194,7 +194,9 @@ async fn send_selftext_gallery_post(
         }
 
         for medias in media_group.chunks_mut(10) {
-            tg_client.send_media_group("266949564", medias).await?;
+            tg_client
+                .send_media_group("266949564".to_owned(), medias)
+                .await?;
         }
     }
     Ok(())
@@ -251,7 +253,7 @@ async fn send_video_post(
 
         tg_client
             .send_video(
-                "266949564",
+                "266949564".to_owned(),
                 tg::TelegramMedia::Bytes(muxed_video, format!("{}.mp4", submission.id)),
                 submission.get_text(true),
                 submission.should_hide(),
@@ -277,7 +279,7 @@ async fn send_image_post(
     if let Some(photo) = tg::TelegramMedia::from_url(&re_client, &submission.url).await? {
         tg_client
             .send_photo(
-                "266949564",
+                "266949564".to_owned(),
                 photo,
                 submission.get_text(true),
                 submission.should_hide(),
@@ -315,7 +317,7 @@ async fn send_gif_post(
 
         tg_client
             .send_animation(
-                "266949564",
+                "266949564".to_owned(),
                 gif,
                 submission.get_text(true),
                 submission.should_hide(),
