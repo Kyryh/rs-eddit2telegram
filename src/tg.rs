@@ -5,7 +5,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::json;
-use std::{fmt, marker::PhantomData, time::Duration};
+use std::{fmt, io, marker::PhantomData, time::Duration};
 
 pub struct TelegramResponse<T>(pub Result<T, Error>);
 
@@ -75,24 +75,37 @@ pub struct TelegramClient {
 }
 
 #[derive(Debug, Clone)]
-pub enum TelegramMedia {
-    URL(String),
-    Bytes(Vec<u8>, String),
+pub struct TelegramMedia {
+    bytes: Vec<u8>,
+    filename: String,
 }
 
 impl TelegramMedia {
+    pub fn new(bytes: Vec<u8>, filename: String) -> Self {
+        Self { bytes, filename }
+    }
+
     pub async fn from_url(re_client: &re::RedditClient, url: &str) -> Result<Option<Self>, Error> {
         if let Ok(url) = reqwest::Url::parse(url)
             && let Some(path_segments) = url.path_segments()
             && let Some(filename) = path_segments.last()
         {
-            Ok(Some(Self::Bytes(
+            Ok(Some(Self::new(
                 re_client.download_file(url.as_str()).await?.into(),
                 filename.to_owned(),
             )))
         } else {
             Ok(None)
         }
+    }
+
+    pub fn downscale_photo(&mut self) -> image::ImageResult<()> {
+        let format = image::ImageFormat::from_path(&self.filename)?;
+        let img = image::load_from_memory_with_format(&self.bytes, format)?;
+        let resized = img.thumbnail(512, 512);
+        self.bytes = Vec::new();
+        resized.write_to(io::Cursor::new(&mut self.bytes), format)?;
+        Ok(())
     }
 }
 
@@ -143,7 +156,7 @@ impl InputMedia {
                     && let Some(filename) = path_segments.last()
                 {
                     Ok(InputMedia::Photo {
-                        media: Some(TelegramMedia::Bytes(
+                        media: Some(TelegramMedia::new(
                             re_client.download_file(url.as_str()).await?.into(),
                             filename.to_owned(),
                         )),
@@ -164,7 +177,7 @@ impl InputMedia {
                     && let Some(filename) = path_segments.last()
                 {
                     Ok(InputMedia::Video {
-                        media: Some(TelegramMedia::Bytes(
+                        media: Some(TelegramMedia::new(
                             re_client.download_file(gif.as_str()).await?.into(),
                             filename.to_owned(),
                         )),
@@ -213,7 +226,7 @@ impl InputMedia {
                     }),
                 )?;
                 Ok(InputMedia::Video {
-                    media: Some(TelegramMedia::Bytes(muxed_video, format!("{id}.mp4"))),
+                    media: Some(TelegramMedia::new(muxed_video, format!("{id}.mp4"))),
                     attach_name: format!("attach://{id}"),
                     caption,
                     parse_mode: "HTML",
@@ -229,10 +242,7 @@ impl InputMedia {
 
 impl From<TelegramMedia> for Part {
     fn from(value: TelegramMedia) -> Self {
-        match value {
-            TelegramMedia::URL(url) => Part::text(url),
-            TelegramMedia::Bytes(bytes, file_name) => Part::bytes(bytes).file_name(file_name),
-        }
+        Part::bytes(value.bytes).file_name(value.filename)
     }
 }
 

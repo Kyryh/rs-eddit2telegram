@@ -248,7 +248,7 @@ async fn send_video_post(
         tg_client
             .send_video(
                 "266949564".to_owned(),
-                tg::TelegramMedia::Bytes(muxed_video, format!("{}.mp4", submission.id)),
+                tg::TelegramMedia::new(muxed_video, format!("{}.mp4", submission.id)),
                 submission.get_text(true),
                 submission.should_hide(),
                 reddit_video.duration,
@@ -270,7 +270,9 @@ async fn send_image_post(
     re_client: &re::RedditClient,
     submission: re::Submission,
 ) -> Result<(), Error> {
-    if let Some(photo) = tg::TelegramMedia::from_url(&re_client, &submission.url).await? {
+    if let Some(mut photo) = tg::TelegramMedia::from_url(&re_client, &submission.url).await?
+        && let Ok(()) = photo.downscale_photo()
+    {
         tg_client
             .send_photo(
                 "266949564".to_owned(),
