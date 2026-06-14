@@ -132,7 +132,6 @@ impl InputMedia {
         media: re::MediaMetadata,
         id: String,
         caption: String,
-        base_url: &str,
         spoiler: bool,
     ) -> Result<Self, Error> {
         match media {
@@ -180,7 +179,9 @@ impl InputMedia {
                     Err(Error::Custom(format!("Invalid media {media:?}")))
                 }
             }
-            re::MediaMetadata::RedditVideo { dash_url, id, .. } => {
+            re::MediaMetadata::RedditVideo {
+                ref dash_url, id, ..
+            } if let Some((base_url, _)) = dash_url.rsplit_once("/") => {
                 let mpd = re_client.get_dash_info(&dash_url).await?;
 
                 let (mut videos, audios) = re_client.get_video_audio_streams(mpd, base_url).await?;
@@ -221,6 +222,7 @@ impl InputMedia {
                     id,
                 })
             }
+            _ => Err(Error::Custom("Invalid media".to_owned())),
         }
     }
 }

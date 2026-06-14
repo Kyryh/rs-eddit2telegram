@@ -162,12 +162,7 @@ async fn send_selftext_gallery_post(
                     Some(media) => {
                         media_group.push(
                             tg::InputMedia::from_reddit_media_metadata(
-                                &re_client,
-                                media,
-                                id,
-                                caption,
-                                &submission.url,
-                                spoiler,
+                                &re_client, media, id, caption, spoiler,
                             )
                             .await?,
                         );
@@ -186,7 +181,6 @@ async fn send_selftext_gallery_post(
                     media,
                     id,
                     "".to_owned(),
-                    &submission.url,
                     spoiler,
                 )
                 .await?,
