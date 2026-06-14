@@ -121,7 +121,23 @@ impl RedditClient {
                 "https://oauth.reddit.com/comments/{submission_id}?raw_json=1",
             ))
             .await?;
-        Ok(response.0.data.children.pop().unwrap().data)
+        let mut submission = response.0.data.children.pop().unwrap().data;
+        submission.selftext_html = submission
+            .selftext_html
+            .as_mut()
+            .map(|string| re_html_to_tg_html(&string).trim().to_owned());
+        if let Some(mut crossposts) = submission.crosspost_parent_list.take() {
+            let crosspost = crossposts.swap_remove(0);
+            submission.is_video = crosspost.is_video;
+            submission.is_gallery = crosspost.is_gallery;
+            submission.preview = crosspost.preview;
+            submission.media = crosspost.media;
+            submission.media_metadata = crosspost.media_metadata;
+            submission.gallery_data = crosspost.gallery_data;
+            submission.url_overridden_by_dest = crosspost.url_overridden_by_dest;
+            submission.removed_by_category = crosspost.removed_by_category;
+        }
+        Ok(submission)
     }
 
     pub async fn get_dash_info(&self, dash_url: &str) -> Result<MPD, Error> {
