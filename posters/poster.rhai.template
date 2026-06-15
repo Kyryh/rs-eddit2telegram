@@ -1,3 +1,12 @@
+// Submission methods:
+//   submission.title()      — post title (HTML-escaped)
+//   submission.url()        — permalink to the post
+//   submission.text(short)  — post text as Telegram HTML; if short=true, truncated to ~768 chars
+//   submission.flair()      — link flair text, or empty string if not set
+//   submission.score()      — upvote score
+//   submission.is_spoiler() — true if the post is marked as a spoiler
+//   submission.is_nsfw()    — true if the post is marked as NSFW
+
 const SUBREDDIT = "reddit";
 const CHAT = -1001234567890;
 const SORT_BY = "hot";
