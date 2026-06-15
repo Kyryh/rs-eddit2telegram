@@ -79,7 +79,7 @@ impl RedditClient {
         &self,
         subreddit: &str,
         sort_by: &str,
-        limit: usize,
+        limit: &str,
     ) -> Result<Vec<Submission>, Error> {
         let response: Listing<ListingData<Listing<Submission>>> = self
             .send_request(&format!(
