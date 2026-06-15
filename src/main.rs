@@ -139,15 +139,16 @@ async fn send_selftext_gallery_post(
     tg_client: &tg::TelegramClient,
     re_client: &re::RedditClient,
     submission: re::Submission,
+    poster: &mut Poster<'_>,
 ) -> Result<(), Error> {
-    let text = submission.get_text(false);
+    let text = poster.get_text(&submission, false)?;
     let text_messages = textwrap(&text, 4096);
 
     for text in text_messages {
         tg_client.send_message("266949564".to_owned(), text).await?;
     }
 
-    let spoiler = submission.should_hide();
+    let spoiler = poster.should_hide(&submission)?;
 
     // send multiple medias if this is a gallery post
     if let Some(mut m) = submission.media_metadata {
@@ -201,6 +202,7 @@ async fn send_video_post(
     tg_client: &tg::TelegramClient,
     re_client: &re::RedditClient,
     submission: re::Submission,
+    poster: &mut Poster<'_>,
 ) -> Result<(), Error> {
     if let Some(re::Media::Video { ref reddit_video }) = submission.media {
         let mpd = re_client.get_dash_info(&reddit_video.dash_url).await?;
@@ -250,8 +252,8 @@ async fn send_video_post(
             .send_video(
                 "266949564".to_owned(),
                 tg::TelegramMedia::new(muxed_video, format!("{}.mp4", submission.id)),
-                submission.get_text(true),
-                submission.should_hide(),
+                poster.get_text(&submission, true)?,
+                poster.should_hide(&submission)?,
                 reddit_video.duration,
                 reddit_video.width,
                 reddit_video.height,
@@ -270,6 +272,7 @@ async fn send_image_post(
     tg_client: &tg::TelegramClient,
     re_client: &re::RedditClient,
     submission: re::Submission,
+    poster: &mut Poster<'_>,
 ) -> Result<(), Error> {
     if let Some(mut photo) = tg::TelegramMedia::from_url(&re_client, &submission.url).await?
         && let Ok(()) = photo.downscale_photo()
@@ -278,8 +281,8 @@ async fn send_image_post(
             .send_photo(
                 "266949564".to_owned(),
                 photo,
-                submission.get_text(true),
-                submission.should_hide(),
+                poster.get_text(&submission, true)?,
+                poster.should_hide(&submission)?,
             )
             .await?;
         Ok(())
@@ -295,6 +298,7 @@ async fn send_gif_post(
     tg_client: &tg::TelegramClient,
     re_client: &re::RedditClient,
     submission: re::Submission,
+    poster: &mut Poster<'_>,
 ) -> Result<(), Error> {
     if let Some(gif) = tg::TelegramMedia::from_url(&re_client, &submission.url).await? {
         let (width, height, thumbnail) = {
@@ -316,8 +320,8 @@ async fn send_gif_post(
             .send_animation(
                 "266949564".to_owned(),
                 gif,
-                submission.get_text(true),
-                submission.should_hide(),
+                poster.get_text(&submission, true)?,
+                poster.should_hide(&submission)?,
                 width,
                 height,
                 thumbnail,
@@ -329,6 +333,68 @@ async fn send_gif_post(
             "Invalid submission: {:?}",
             submission
         )))
+    }
+}
+
+struct Poster<'a> {
+    rhai: rhai::Engine,
+    ast: rhai::AST,
+    scope: rhai::Scope<'a>,
+}
+
+impl Poster<'_> {
+    pub fn new(script: impl AsRef<str>) -> Result<Self, rhai::ParseError> {
+        let mut rhai = rhai::Engine::new();
+
+        rhai.register_fn("is_spoiler", re::Submission::is_spoiler)
+            .register_fn("is_nsfw", re::Submission::is_nsfw)
+            .register_fn("text", re::Submission::text)
+            .register_fn("title", re::Submission::title)
+            .register_fn("flair", re::Submission::flair)
+            .register_fn("url", re::Submission::url);
+
+        let ast = rhai.compile(script)?;
+
+        let scope = rhai::Scope::new();
+
+        Ok(Self { rhai, ast, scope })
+    }
+
+    pub fn should_hide(
+        &mut self,
+        submission: &re::Submission,
+    ) -> Result<bool, Box<rhai::EvalAltResult>> {
+        self.rhai.call_fn::<bool>(
+            &mut self.scope,
+            &self.ast,
+            "should_hide",
+            (submission.clone(),),
+        )
+    }
+
+    pub fn should_post(
+        &mut self,
+        submission: &re::Submission,
+    ) -> Result<bool, Box<rhai::EvalAltResult>> {
+        self.rhai.call_fn::<bool>(
+            &mut self.scope,
+            &self.ast,
+            "should_post",
+            (submission.clone(),),
+        )
+    }
+
+    pub fn get_text(
+        &mut self,
+        submission: &re::Submission,
+        short: bool,
+    ) -> Result<String, Box<rhai::EvalAltResult>> {
+        self.rhai.call_fn::<String>(
+            &mut self.scope,
+            &self.ast,
+            "get_text",
+            (submission.clone(), short),
+        )
     }
 }
 
@@ -345,31 +411,39 @@ fn main() -> Result<(), Error> {
         let tg_client =
             tg::TelegramClient::new("1176290676:AAHGM1ulbu21PW812NMn7-exGTDJJJg19x0".to_owned());
 
+        let mut poster = Poster::new(include_str!("../posters/poster.rhai"))?;
+
         for submission in re_client
-            .get_subreddit_submissions("hollowknight", "hot", 300)
+            .get_subreddit_submissions("ultrakill", "hot", 300)
             .await?
         {
-            if submission.id == "1u3s0ic" || submission.id == "1u3j755" {
-                dbg!(&submission);
-            }
+            // for submission in [
+            //     "1smdq9c", "1snakqg", "1soa1ck", "1sruyto", "1sshvo2", "1stur57", "1sukc0z", "1teprhg",
+            //     "1tggeez", "1tj9fly", "1tk6k23", "1tp791s", "1tuiel4", "1oezx5l",
+            // ] {
+            // let submission = re_client.get_submission(submission).await?;
+            // dbg!(&submission);
             if submission.removed_by_category.is_some() {
+                continue;
+            }
+            if !poster.should_post(&submission)? {
                 continue;
             }
             let submission_id = submission.id.clone();
             let result = if submission.is_video {
                 // single video post
-                send_video_post(&tg_client, &re_client, submission).await
+                send_video_post(&tg_client, &re_client, submission, &mut poster).await
             } else if submission.url.starts_with("https://i.redd.it/") {
                 if submission.url.ends_with(".gif") {
                     // single gif post
-                    send_gif_post(&tg_client, &re_client, submission).await
+                    send_gif_post(&tg_client, &re_client, submission, &mut poster).await
                 } else {
                     // single image post
-                    send_image_post(&tg_client, &re_client, submission).await
+                    send_image_post(&tg_client, &re_client, submission, &mut poster).await
                 }
             } else {
                 // selftext or gallery post
-                send_selftext_gallery_post(&tg_client, &re_client, submission).await
+                send_selftext_gallery_post(&tg_client, &re_client, submission, &mut poster).await
             };
 
             if let Err(err) = result {

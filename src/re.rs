@@ -200,7 +200,7 @@ impl RedditClient {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Submission {
     pub url: String,
     pub title: String,
@@ -273,50 +273,37 @@ fn re_html_to_tg_html(string: &str) -> String {
 }
 
 impl Submission {
-    pub fn should_hide(&self) -> bool {
-        self.spoiler || self.over_18
+    pub fn is_spoiler(&mut self) -> bool {
+        self.spoiler
     }
 
-    pub fn get_text(&self, short: bool) -> String {
-        let mut text = String::new();
+    pub fn is_nsfw(&mut self) -> bool {
+        self.over_18
+    }
 
-        if self.over_18 {
-            text.push_str("🔞NSFW🔞\n");
-        }
-
-        if let Some(selftext) = &self.selftext_html
-            && !selftext.is_empty()
-        {
-            text.push_str("<b>");
-            text.push_str(&escape_html(&self.title));
-            text.push_str("</b>");
-
-            let selftext = if short {
-                &shorten(&selftext, 1024 - 256)
+    pub fn text(&mut self, short: bool) -> String {
+        if let Some(selftext) = &self.selftext_html {
+            if short {
+                shorten(&selftext, 1024 - 256)
             } else {
-                &selftext
-            };
-
-            text.push_str("\n\n");
-
-            if self.should_hide() {
-                text.push_str("<tg-spoiler>");
-                text.push_str(&selftext);
-                text.push_str("</tg-spoiler>");
-            } else {
-                text.push_str(&selftext);
+                selftext.clone()
             }
         } else {
-            text.push_str(&escape_html(&self.title));
+            "".to_owned()
         }
-
-        text.push_str("\n\n<a href=\"https://www.reddit.com");
-        text.push_str(&escape_html(&self.permalink));
-        text.push_str("\">https://redd.it/");
-        text.push_str(&escape_html(&self.id));
-        text.push_str("</a>");
-
-        text
+    }
+    pub fn title(&mut self) -> String {
+        escape_html(&self.title)
+    }
+    pub fn flair(&mut self) -> Option<String> {
+        self.link_flair_text.clone()
+    }
+    pub fn url(&mut self) -> String {
+        format!(
+            "<a href=\"https://www.reddit.com{}\">https://redd.it/{}</a>",
+            escape_html(&self.permalink),
+            escape_html(&self.id)
+        )
     }
 }
 
@@ -377,18 +364,18 @@ pub struct SubredditInfo {
     over18: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Preview {
     pub images: Vec<Image>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Image {
     pub source: MediaData,
     pub resolutions: Vec<MediaData>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct MediaData {
     #[serde(alias = "u")]
     pub url: Option<String>,
@@ -400,7 +387,7 @@ pub struct MediaData {
     pub height: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Media {
     Video {
@@ -413,7 +400,7 @@ pub enum Media {
     },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Embed {
     provider_url: String,
     description: Option<String>,
@@ -432,7 +419,7 @@ pub struct Embed {
     author_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Video {
     pub bitrate_kbps: usize,
     pub fallback_url: String,
@@ -447,12 +434,12 @@ pub struct Video {
     pub transcoding_status: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct GalleryData {
     pub items: Vec<GalleryDataInstance>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct GalleryDataInstance {
     pub caption: Option<String>,
     pub media_id: String,
@@ -460,7 +447,7 @@ pub struct GalleryDataInstance {
     pub id: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "e")]
 pub enum MediaMetadata {
     RedditVideo {

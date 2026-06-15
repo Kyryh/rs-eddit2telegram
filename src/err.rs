@@ -8,6 +8,8 @@ pub enum Error {
     SerdeXMLError(serde_xml_rs::Error),
     InvalidRedditAccessToken,
     Custom(String),
+    RhaiParseError(rhai::ParseError),
+    RhaiEvalAltResult(Box<rhai::EvalAltResult>),
 }
 
 impl From<reqwest::Error> for Error {
@@ -25,5 +27,17 @@ impl From<serde_xml_rs::Error> for Error {
 impl From<String> for Error {
     fn from(value: String) -> Self {
         Self::Custom(value)
+    }
+}
+
+impl From<rhai::ParseError> for Error {
+    fn from(value: rhai::ParseError) -> Self {
+        Self::RhaiParseError(value)
+    }
+}
+
+impl From<Box<rhai::EvalAltResult>> for Error {
+    fn from(value: Box<rhai::EvalAltResult>) -> Self {
+        Self::RhaiEvalAltResult(value)
     }
 }
