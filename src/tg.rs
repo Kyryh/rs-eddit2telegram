@@ -102,7 +102,10 @@ impl TelegramMedia {
     pub fn downscale_photo(&mut self) -> image::ImageResult<()> {
         let format = image::ImageFormat::from_path(&self.filename)?;
         let img = image::load_from_memory_with_format(&self.bytes, format)?;
-        let resized = img.thumbnail(512, 512);
+        if img.width() <= 2048 && img.height() <= 2048 {
+            return Ok(());
+        }
+        let resized = img.resize(2048, 2048, image::imageops::FilterType::Nearest);
         self.bytes = Vec::new();
         resized.write_to(io::Cursor::new(&mut self.bytes), format)?;
         Ok(())
