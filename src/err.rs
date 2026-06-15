@@ -10,6 +10,7 @@ pub enum Error {
     Custom(String),
     RhaiEvalAltResult(Box<rhai::EvalAltResult>),
     IOError(std::io::Error),
+    SQLiteError(sqlite::Error),
 }
 
 impl From<reqwest::Error> for Error {
@@ -39,5 +40,11 @@ impl From<Box<rhai::EvalAltResult>> for Error {
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Self::IOError(value)
+    }
+}
+
+impl From<sqlite::Error> for Error {
+    fn from(value: sqlite::Error) -> Self {
+        Self::SQLiteError(value)
     }
 }
