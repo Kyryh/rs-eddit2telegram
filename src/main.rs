@@ -131,6 +131,7 @@ fn shorten(string: &str, limit: usize) -> String {
     for (name, _) in open_tags.iter().rev() {
         result.push_str(&format!("</{}>", name));
     }
+    result.push_str(" [...]");
     result
 }
 
