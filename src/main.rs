@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, env, fs, path::PathBuf};
 
 use crate::err::Error;
 
@@ -430,16 +430,18 @@ fn get_posters<'a>() -> Result<Vec<Poster<'a>>, Error> {
 
 fn main() -> Result<(), Error> {
     block_on(async {
+        dotenv::dotenv().unwrap();
+
         let mut re_client = re::RedditClient::new(
             "kyryh/reddit2telegram",
-            "SyXK3RVgI-7VqGi79Aybzw".to_owned(),
-            "zQnZAmKn2B6tmbrmWP027xCe5AF4aA".to_owned(),
+            env::var("REDDIT_CLIENT_ID").expect(".env variables should be set"),
+            env::var("REDDIT_CLIENT_SECRET").expect(".env variables should be set"),
         );
 
         re_client.update_access_token().await?;
 
         let tg_client =
-            tg::TelegramClient::new("1176290676:AAHGM1ulbu21PW812NMn7-exGTDJJJg19x0".to_owned());
+            tg::TelegramClient::new(env::var("BOT_TOKEN").expect(".env variables should be set"));
 
         for mut poster in get_posters()? {
             let consts = poster.get_consts();
