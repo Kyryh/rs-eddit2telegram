@@ -297,8 +297,8 @@ impl Submission {
         escape_html(&self.title)
     }
 
-    pub fn flair(&mut self) -> Option<String> {
-        self.link_flair_text.clone()
+    pub fn flair(&mut self) -> String {
+        self.link_flair_text.clone().unwrap_or_default()
     }
 
     pub fn url(&mut self) -> String {
@@ -309,8 +309,8 @@ impl Submission {
         )
     }
 
-    pub fn score(&mut self) -> isize {
-        self.score
+    pub fn score(&mut self) -> i64 {
+        self.score as i64
     }
 }
 
