@@ -351,7 +351,8 @@ impl Poster<'_> {
             .register_fn("text", re::Submission::text)
             .register_fn("title", re::Submission::title)
             .register_fn("flair", re::Submission::flair)
-            .register_fn("url", re::Submission::url);
+            .register_fn("url", re::Submission::url)
+            .register_fn("score", re::Submission::score);
 
         let ast = rhai.compile(script)?;
 

@@ -292,18 +292,25 @@ impl Submission {
             "".to_owned()
         }
     }
+
     pub fn title(&mut self) -> String {
         escape_html(&self.title)
     }
+
     pub fn flair(&mut self) -> Option<String> {
         self.link_flair_text.clone()
     }
+
     pub fn url(&mut self) -> String {
         format!(
             "<a href=\"https://www.reddit.com{}\">https://redd.it/{}</a>",
             escape_html(&self.permalink),
             escape_html(&self.id)
         )
+    }
+
+    pub fn score(&mut self) -> isize {
+        self.score
     }
 }
 
