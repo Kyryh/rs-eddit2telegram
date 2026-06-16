@@ -2,6 +2,7 @@ use std::{collections::HashMap, env, fs, ops::Deref, path::PathBuf};
 
 use crate::err::Error;
 
+mod db;
 mod err;
 mod muxer;
 mod re;
@@ -432,15 +433,7 @@ fn main() -> Result<(), Error> {
     block_on(async {
         dotenv::dotenv().unwrap();
 
-        let sql_conn = sqlite::open("db.sqlite")?;
-
-        sql_conn.execute(
-            "CREATE TABLE IF NOT EXISTS posted_submissions (
-                chat TEXT NOT NULL,
-                reddit_post TEXT NOT NULL,
-                PRIMARY KEY (chat, reddit_post)
-            );",
-        )?;
+        let db = db::PostedSubmissions::new("db.sqlite")?;
 
         let mut re_client = re::RedditClient::new(
             "kyryh/reddit2telegram",
@@ -463,16 +456,7 @@ fn main() -> Result<(), Error> {
                 )
                 .await?
             {
-                let submission_id = submission.id.clone();
-                let mut select_statement = sql_conn.prepare("SELECT COUNT(*) AS c FROM posted_submissions WHERE chat = :chat AND reddit_post = :post")?;
-                select_statement.bind::<&[(_, sqlite::Value)]>(
-                    &[
-                        (":chat", consts["CHAT"].deref().into()),
-                        (":post", submission_id.deref().into()),
-                    ][..],
-                )?;
-                select_statement.next()?;
-                if select_statement.read::<i64, _>("c")? != 0 {
+                if db.submission_is_posted(&consts["CHAT"], &submission.id)? {
                     continue;
                 }
                 if submission.removed_by_category.is_some() {
@@ -481,6 +465,7 @@ fn main() -> Result<(), Error> {
                 if !poster.should_post(&submission)? {
                     continue;
                 }
+                let submission_id = submission.id.clone();
                 let result = if submission.is_video {
                     // single video post
                     send_video_post(
@@ -527,17 +512,7 @@ fn main() -> Result<(), Error> {
 
                 match result {
                     Ok(()) => {
-                        let mut insert_statement = sql_conn.prepare(
-                            "INSERT INTO posted_submissions (chat, reddit_post) VALUES (:chat, :post)",
-                        )?;
-
-                        insert_statement.bind::<&[(_, sqlite::Value)]>(
-                            &[
-                                (":chat", consts["CHAT"].deref().into()),
-                                (":post", submission_id.into()),
-                            ][..],
-                        )?;
-                        insert_statement.next()?;
+                        db.add_submission(&consts["CHAT"], &submission_id)?;
                     }
                     Err(err) => {
                         println!("Error for submission {}: {:?}", submission_id, err);
