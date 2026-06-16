@@ -46,7 +46,7 @@ The program runs once, sends any new posts, then exits.
 To keep the channel updated, schedule the binary to run periodically, for example with cron:
 
 ```cron
-30 * * * * /path/to/reddit2telegram >> /path/to/logging.log
+*/30 * * * * /path/to/reddit2telegram >> /path/to/logging.log
 ```
 
 Or a Windows scheduled task set to repeat every 30 minutes.
