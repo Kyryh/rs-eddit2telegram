@@ -16,15 +16,15 @@ jobs:
           - os: ubuntu-latest
             binary: reddit2telegram
             artifact: reddit2telegram-linux
-            ext: ""
+            archive: reddit2telegram-linux.tar.gz
           - os: windows-latest
             binary: reddit2telegram.exe
             artifact: reddit2telegram-windows
-            ext: .exe
+            archive: reddit2telegram-windows.zip
           - os: macos-latest
             binary: reddit2telegram
             artifact: reddit2telegram-macos
-            ext: ""
+            archive: reddit2telegram-macos.tar.gz
 
     steps:
       - uses: actions/checkout@v4
@@ -48,15 +48,29 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - name: Stage binary
+      - name: Stage files
         shell: bash
-        run: cp target/release/${{ matrix.binary }} ${{ matrix.artifact }}${{ matrix.ext }}
+        run: |
+          mkdir dist
+          cp target/release/${{ matrix.binary }} dist/
+          cp .env.template dist/
+          mkdir dist/posters
+          cp posters/poster.rhai.template dist/posters/
+
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows-latest'
+        run: tar -czf ${{ matrix.archive }} -C dist .
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: Compress-Archive -Path dist\* -DestinationPath ${{ matrix.archive }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}${{ matrix.ext }}
+          path: ${{ matrix.archive }}
 
   release:
     name: Release
@@ -83,6 +97,6 @@ jobs:
           name: Latest Build (${{ github.ref_name }}@${{ github.sha }})
           prerelease: true
           files: |
-            reddit2telegram-linux
-            reddit2telegram-windows.exe
-            reddit2telegram-macos
+            reddit2telegram-linux.tar.gz
+            reddit2telegram-windows.zip
+            reddit2telegram-macos.tar.gz
