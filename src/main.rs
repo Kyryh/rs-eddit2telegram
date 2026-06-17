@@ -515,7 +515,16 @@ fn main() -> Result<(), Error> {
                         db.add_submission(&consts["CHAT"], &submission_id)?;
                     }
                     Err(err) => {
-                        println!("Error for submission {}: {:?}", submission_id, err);
+                        let err_message =
+                            format!("Error for submission {}: {:?}", submission_id, err);
+
+                        println!("{err_message}");
+                        tg_client
+                            .send_message(
+                                env::var("OWNER_ID").expect(".env variables should be set"),
+                                err_message,
+                            )
+                            .await?;
                     }
                 }
             }
