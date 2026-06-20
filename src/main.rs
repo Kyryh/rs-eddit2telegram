@@ -431,7 +431,7 @@ fn get_posters<'a>() -> Result<Vec<Poster<'a>>, Error> {
 
 fn main() -> Result<(), Error> {
     block_on(async {
-        dotenv::dotenv().unwrap();
+        dotenv::dotenv().expect(".env file not found");
 
         let db = db::PostedSubmissions::new("db.sqlite")?;
 
