@@ -414,7 +414,7 @@ pub struct Embed {
     title: String,
     #[serde(rename = "type")]
     ty: String,
-    author_name: String,
+    author_name: Option<String>,
     height: usize,
     width: usize,
     html: String,
@@ -423,7 +423,7 @@ pub struct Embed {
     thumbnail_url: String,
     thumbnail_width: usize,
     thumbnail_height: usize,
-    author_url: String,
+    author_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
