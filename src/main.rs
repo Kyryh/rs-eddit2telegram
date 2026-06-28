@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs, ops::Deref, path::PathBuf};
+use std::{collections::HashMap, env, fs, path::PathBuf};
 
 use crate::err::Error;
 
