@@ -151,8 +151,12 @@ impl InputMedia {
         spoiler: bool,
     ) -> Result<Self, Error> {
         match media {
-            re::MediaMetadata::Image { ref previews, .. } => {
-                if let Some(preview) = &previews.last()
+            re::MediaMetadata::Image {
+                ref previews,
+                ref source,
+                ..
+            } => {
+                if let Some(preview) = &previews.last().or(Some(source))
                     && let Some(url) = &preview.url
                     && let Ok(url) = reqwest::Url::parse(url)
                     && let Some(path_segments) = url.path_segments()
